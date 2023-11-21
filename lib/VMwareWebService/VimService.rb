@@ -1,22 +1,21 @@
-require "handsoap"
+require "VMwareWebService/handsoap_stub"
 require 'active_support/core_ext/numeric/bytes'
 require 'VMwareWebService/logging'
 require 'VMwareWebService/VimTypes'
 
-class VimService < Handsoap::Service
+class VimService < VMwareWebService::HandsoapStub::Service
   include VMwareWebService::Logging
 
-  attr_reader :sic, :about, :apiVersion, :isVirtualCenter, :v20, :v2, :v4, :v5, :v6, :serviceInstanceMor, :session_cookie
+  attr_reader :sic, :about, :apiVersion, :isVirtualCenter, :v20, :v2, :v4, :v5, :v6, :serviceInstanceMor
 
   Handsoap.http_driver = :HTTPClient
 
   def initialize(ep)
-    super
-
     setNameSpace('urn:vim25')
 
+    super
+
     @serviceInstanceMor = VimString.new("ServiceInstance", "ServiceInstance")
-    @session_cookie     = nil
 
     @xml_payload_len  = 0
     @xml_payload_max  = 10.megabytes
@@ -466,7 +465,6 @@ class VimService < Handsoap::Service
       message.add "n1:userName", username
       message.add "n1:password", password
     end
-    @session_cookie ||= response.cookie
     (parse_response(response, 'LoginResponse')['returnval'])
   end
 
@@ -961,7 +959,6 @@ class VimService < Handsoap::Service
         i.set_attr "type", @serviceInstanceMor.vimType
       end
     end
-    @session_cookie ||= response.cookie
     (parse_response(response, 'RetrieveServiceContentResponse')['returnval'])
   end
 
@@ -1306,22 +1303,8 @@ class VimService < Handsoap::Service
     end
   end
 
-  def parse_response(response, rType)
-    doc  = response.document
-    raise "Response <#{response.inspect}> has no XML document" if doc.nil?
-
-    # Cleanup the raw XML document from the response and kick a GC
-    handle_memory_and_gc(response)
-
-    search_path = "//n1:#{rType}"
-    node = doc.xpath(search_path, @ns).first
-    raise "Node (search=<#{search_path}> namespace=<#{@ns}>) not found in XML document <#{doc.inspect}>" if node.nil?
-    ur   = unmarshal_response(node, rType)
-    # puts
-    # puts "***** #{rType}"
-    # dumpObj(ur)
-    # puts
-    (ur)
+  def parse_response(response, _rType)
+    {"returnval" => rbvmomi_to_vim_type(response)}
   end
 
   def unmarshal_response(node, vType = nil)
