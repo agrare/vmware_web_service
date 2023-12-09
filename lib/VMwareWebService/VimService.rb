@@ -1304,6 +1304,8 @@ class VimService < VMwareWebService::HandsoapStub::Service
   end
 
   def parse_response(response, _rType)
+    return if response.nil?
+
     {"returnval" => rbvmomi_to_vim_type(response)}
   end
 

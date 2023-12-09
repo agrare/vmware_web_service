@@ -7,7 +7,8 @@ module VMwareWebService
       def initialize(ep)
         super
 
-        uri = URI.parse(ep[:uri])
+        uri = ep[:uri]
+        uri = URI.parse(uri) unless uri.kind_of?(URI)
 
         require 'rbvmomi/vim'
         @vim = RbVmomi::VIM.new(:host => uri.host, :port => uri.port, :insecure => true, :ssl => uri.scheme == "https", :ns => @ns["n1"], :path => "/sdk", :rev => "8.0")
@@ -16,7 +17,7 @@ module VMwareWebService
       def dispatch(doc, action)
         args = xml_doc_to_rbvmomi(doc, action)
         this = args.delete("_this")
-        this.send(action.to_sym, *args)
+        this.send(action.to_sym, args)
       end
 
       private
@@ -35,9 +36,15 @@ module VMwareWebService
       def xml_to_rbvmomi(xml)
         # TODO handle more than ManagedObjects
 
-        type  = xml.instance_variable_get(:@attributes)["type"]
+        managed_object_type  = xml.instance_variable_get(:@attributes)&.dig("type")
+        name  = xml.instance_variable_get(:@node_name)
         value = xml.instance_variable_get(:@children).first.to_s
-        RbVmomi::VIM.const_get(type).new(@vim, value)
+
+        if managed_object_type
+          RbVmomi::VIM.const_get(managed_object_type).new(@vim, value)
+        else
+          value
+        end
       end
 
       def rbvmomi_to_vim_type(obj)
